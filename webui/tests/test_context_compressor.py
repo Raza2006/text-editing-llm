@@ -101,3 +101,11 @@ def test_oversized_history_trimmed_before_summary(llama, tmp_path):
     run(make(url, tmp_path), {"messages": convo([700, 700, 100, 20])})
     summary_req = [b for p, b, _ in stub.requests if p == "/v1/chat/completions"][0]
     assert len(summary_req["messages"][1]["content"].split()) <= 1000
+
+
+def test_failure_reason_is_logged_for_admins(llama, tmp_path, capsys):
+    url, stub = llama
+    stub.fail_completions = True
+    with pytest.raises(Exception):
+        run(make(url, tmp_path), {"messages": convo([400, 300, 200, 50])})
+    assert "Context compressor error" in capsys.readouterr().err

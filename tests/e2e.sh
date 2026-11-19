@@ -37,17 +37,22 @@ ok "all 7 presets are listed"
 answer=$(chat "$TOKEN" copy-edit '[{"role":"user","content":"Fix this sentence: this are a test."}]' | json 'd["choices"][0]["message"]["content"]')
 [ -n "$answer" ] && ok "copy-edit preset answers" || bad "copy-edit preset gave no answer"
 
-# 4. compression: a conversation over its limit is condensed, an impossible one is refused politely
-api POST /api/v1/functions/id/context_compressor/valves/update "$TOKEN" \
-  '{"per_chat_limit": 400, "compress_at": 0.5, "keep_recent_turns": 1}' >/dev/null
-long=$(python3 -c 'import json; w=" ".join(["word"]*120); print(json.dumps([{"role":r,"content":w} for r in ["user","assistant","user","assistant"]]+[{"role":"user","content":"Say OK."}]))')
+# 4. compression: a conversation over its limit is condensed, an impossible one is refused politely.
+# Open WebUI replaces ALL of a function's settings on save, so start from the current ones.
+current=$(api GET /api/v1/functions/id/context_compressor/valves "$TOKEN")
+small=$(echo "$current" | python3 -c 'import json,sys; v=json.load(sys.stdin) or {}; v.update(per_chat_limit=4000, compress_at=0.3, keep_recent_turns=1); print(json.dumps(v))')
+api POST /api/v1/functions/id/context_compressor/valves/update "$TOKEN" "$small" >/dev/null
+long=$(python3 -c 'import json; w=" ".join(["word"]*350); print(json.dumps([{"role":r,"content":w} for r in ["user","assistant","user","assistant","user","assistant"]]+[{"role":"user","content":"Say OK."}]))')
 out=$(chat "$TOKEN" general "$long")
 echo "$out" | json 'd["choices"][0]["message"]["content"]' >/dev/null 2>&1 && ok "long chat is compressed and still answered" \
   || bad "long chat failed: $out"
-huge=$(python3 -c 'import json; print(json.dumps([{"role":"user","content":" ".join(["word"]*900)}]))')
+huge=$(python3 -c 'import json; print(json.dumps([{"role":"user","content":" ".join(["word"]*5000)}]))')
 out=$(chat "$TOKEN" general "$huge")
 [[ "$out" == *"too long"* ]] && ok "an impossible chat gets a plain 'too long' message" || bad "no plain message: $out"
+dc logs --no-color webui 2>/dev/null | grep -q "Context compressor error" && bad "compressor logged an error (see webui logs)"
 dc run --rm seed >/dev/null && ok "seeding again restores the normal limits"
+key=$(api GET /api/v1/functions/id/context_compressor/valves "$TOKEN" | json 'd.get("llama_key","")')
+[ -n "$key" ] && ok "compressor still has the model key after re-seeding" || bad "compressor lost its model key"
 
 # 5. Think toggle installed as an on/off switch, plus the Compress button
 fl=$(api GET /api/v1/functions/ "$TOKEN")

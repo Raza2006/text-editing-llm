@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import os
+import sys
 import threading
 import urllib.request
 
@@ -167,6 +168,7 @@ class Filter:
         except Exception as e:
             if str(e) in (TOO_LONG, BUSY):
                 raise
+            print(f"Context compressor error: {e!r}", file=sys.stderr, flush=True)
             raise Exception(BUSY) from e
         if compressed:
             body["messages"] = new_messages
