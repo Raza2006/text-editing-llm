@@ -43,6 +43,19 @@ def _text(content):
     return str(content or "")
 
 
+def _alternating(messages):
+    """Drop leading assistant messages and merge neighbours with the same role, so roles alternate."""
+    out = []
+    for m in messages:
+        if not out and m.get("role") != "user":
+            continue
+        if out and out[-1]["role"] == m.get("role"):
+            out[-1] = {"role": out[-1]["role"], "content": _text(out[-1]["content"]) + "\n\n" + _text(m.get("content"))}
+        else:
+            out.append(m)
+    return out
+
+
 def _load_cache(path):
     try:
         with open(path, encoding="utf-8") as f:
@@ -122,9 +135,13 @@ class Filter:
 
         system = [m for m in messages if m.get("role") == "system"]
         rest = [m for m in messages if m.get("role") != "system"]
-        keep_n = max(0, 2 * v.keep_recent_turns)
-        recent = rest[-keep_n:] if keep_n else []
-        earlier = rest[: len(rest) - len(recent)]
+        keep_n = max(1, 2 * v.keep_recent_turns)
+        # The kept part must start with a user message (strict chat templates such as Gemma's).
+        start = max(0, len(rest) - keep_n)
+        while start > 0 and rest[start].get("role") != "user":
+            start -= 1
+        recent = _alternating(rest[start:])
+        earlier = rest[:start]
         documents = [m for m in earlier if m.get("role") == "user" and _text(m.get("content")).startswith(DOCUMENT_MARK)]
         older = [m for m in earlier if m not in documents]
 
@@ -152,7 +169,10 @@ class Filter:
         else:
             summary = self._summarise("", older)
 
-        new_messages = system + [{"role": "system", "content": SUMMARY_PREFIX + summary}] + documents + recent
+        # One system message: the original instructions, then the documents (word for word), then the summary.
+        parts = [_text(m.get("content")) for m in system] + [_text(m.get("content")) for m in documents]
+        parts.append(SUMMARY_PREFIX + summary)
+        new_messages = [{"role": "system", "content": "\n\n".join(p for p in parts if p)}] + recent
         if chat_id:
             _update_cache(v.cache_path, chat_id, summary=summary, covered_count=len(older),
                           covered_hash=_digest(older), force=False)

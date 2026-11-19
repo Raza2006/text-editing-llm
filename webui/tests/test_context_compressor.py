@@ -44,9 +44,9 @@ def test_over_threshold_summarises_and_keeps_recent_and_document(llama, tmp_path
     msgs = convo([300, 300, 200, 50], doc=100)
     out, em = run(make(url, tmp_path), {"messages": msgs})
     contents = [m["content"] for m in out["messages"]]
-    assert contents[0] == "SYS"
-    assert any("SUMMARY: user prefers British spelling" in c for c in contents)
-    assert any(c.startswith("[DOCUMENT]") for c in contents)
+    assert contents[0].startswith("SYS")  # instructions first, in the single system message
+    assert "SUMMARY: user prefers British spelling" in contents[0]
+    assert ("[DOCUMENT] " + " ".join(["d"] * 100)) in contents[0]  # document kept word for word
     assert contents[-2:] == [msgs[-2]["content"], msgs[-1]["content"]]
     assert not any(c == msgs[2]["content"] for c in contents)  # oldest turn condensed
     assert "summarised" in em.events[-1]["data"]["description"]
@@ -109,3 +109,24 @@ def test_failure_reason_is_logged_for_admins(llama, tmp_path, capsys):
     with pytest.raises(Exception):
         run(make(url, tmp_path), {"messages": convo([400, 300, 200, 50])})
     assert "Context compressor error" in capsys.readouterr().err
+
+
+def _roles_ok(messages):
+    roles = [m["role"] for m in messages]
+    if roles.count("system") > 1 or (roles and roles[0] != "system" and "system" in roles):
+        return False
+    convo_roles = [r for r in roles if r != "system"]
+    if not convo_roles or convo_roles[0] != "user" or convo_roles[-1] != "user":
+        return False
+    return all(a != b for a, b in zip(convo_roles, convo_roles[1:]))
+
+
+def test_compressed_messages_alternate_for_strict_templates(llama, tmp_path):
+    # Gemma's chat template rejects two system messages or user/assistant out of turn.
+    url, _ = llama
+    msgs = convo([400, 300, 200, 50, 30], doc=100)  # ends with a user message, like a real request
+    out, _ = run(make(url, tmp_path), {"messages": msgs})
+    assert _roles_ok(out["messages"]), [m["role"] for m in out["messages"]]
+    system = out["messages"][0]["content"]
+    assert system.startswith("SYS") and "SUMMARY" in system and "[DOCUMENT]" in system
+    assert out["messages"][-1]["content"] == msgs[-1]["content"]
