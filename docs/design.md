@@ -226,7 +226,7 @@ Never in git: `.env`, `data/` (database, backups), `models/`, logs.
 - **The model is chosen by total GPU memory** (40 GiB or more → Gemma 4 31B, otherwise Gemma 4 26B-A4B). The start-up probe only picks the shared pool size.
 - **The Compress button** marks the chat; the compressed version is used from the user's next message, and the button says so.
 - **The raw model** is kept as an admin-only entry ("Gemma (raw model, admin only)"); users see only the presets.
-- **Pinned versions:** llama.cpp `b12527` (CUDA 12.8, Blackwell support), Open WebUI `v0.13.4`, Caddy `2.11.9`. The "Open WebUI" branding stays (its licence allows changes only for 50 users or fewer); our product name appears as `WEBUI_NAME`.
+- **Pinned versions:** llama.cpp `b12004` (CUDA 12.8, Blackwell support), Open WebUI `v0.13.4`, Caddy `2.11.9`. The "Open WebUI" branding stays (its licence allows changes only for 50 users or fewer); our product name appears as `WEBUI_NAME`.
 - **Windows:** `textedit.cmd` lets users type `.\textedit` like on Linux. Secret files keep normal user-folder permissions so Docker Desktop can read them.
 
 ## 11. Left to the builder (original list)

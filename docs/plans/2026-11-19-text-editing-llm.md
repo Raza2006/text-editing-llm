@@ -6,7 +6,7 @@
 
 **Architecture:** Docker Compose runs four long-lived services: `llama` (llama.cpp server with Gemma 4), `webui` (Open WebUI), `caddy` (HTTPS) and `backup`. Two one-shot services run with the same `manager` image: `setup` (model download and checksum) and `seed` (presets and functions loaded through the Open WebUI API). Host scripts (`install.sh` / `install.ps1`, `textedit` / `textedit.ps1`) only install prerequisites, write `.env` and call `docker compose`. All logic that must behave identically on both systems lives inside containers, in Python (`manager/`) or POSIX shell (`llama/entrypoint.sh`).
 
-**Tech Stack:** Docker Compose; llama.cpp `server-cuda-b12527`; Open WebUI `v0.13.4`; Caddy `2.11.9-alpine`; Python 3.12 (stdlib only plus `pytest` for tests); bash; PowerShell 5.1+.
+**Tech Stack:** Docker Compose; llama.cpp `server-cuda-b12004`; Open WebUI `v0.13.4`; Caddy `2.11.9-alpine`; Python 3.12 (stdlib only plus `pytest` for tests); bash; PowerShell 5.1+.
 
 **Spec:** `docs/design.md`
 
@@ -50,7 +50,7 @@
 - `.gitattributes`: `*.sh text eol=lf`, `textedit text eol=lf`, `*.ps1 text eol=crlf`, `*.py text eol=lf`.
 - `.gitignore`: `.env`, `data/`, `*.log`, `__pycache__/`, `.pytest_cache/`.
 
-- [ ] Step 1: Create the files with the values above (image tags: `ghcr.io/ggml-org/llama.cpp:server-cuda-b12527`, `ghcr.io/open-webui/open-webui:v0.13.4`, `caddy:2.11.9-alpine`, `python:3.12-slim`).
+- [ ] Step 1: Create the files with the values above (image tags: `ghcr.io/ggml-org/llama.cpp:server-cuda-b12004`, `ghcr.io/open-webui/open-webui:v0.13.4`, `caddy:2.11.9-alpine`, `python:3.12-slim`).
 - [ ] Step 2: Verify: `grep -c = config/versions.env` prints 16; `git check-ignore .env data/x` prints both paths.
 - [ ] Step 3: Commit `chore: repository skeleton and pinned versions`.
 
@@ -164,7 +164,7 @@
   - `seed` (manager image, profile `tools`).
 - Only `caddy` publishes ports.
 - `Caddyfile`: `{$SITE_ADDRESSES} { tls internal; reverse_proxy webui:8080 }` (WebSockets pass through).
-- `compose.ci.yaml` overrides: llama image `server-b12527` (CPU), `CPU_ONLY=1`, `MODEL_SET=ci`, `CTX_CANDIDATES="16384 8192"`, no GPU reservations, `HTTPS_PORT=8443`.
+- `compose.ci.yaml` overrides: llama image `server-b12004` (CPU), `CPU_ONLY=1`, `MODEL_SET=ci`, `CTX_CANDIDATES="16384 8192"`, no GPU reservations, `HTTPS_PORT=8443`.
 
 - [ ] Step 1: With a sample `.env`: `docker compose config -q` and `docker compose -f compose.yaml -f compose.ci.yaml config -q` both exit 0.
 - [ ] Step 2: `docker compose config | grep -c published` shows only caddy's two ports.

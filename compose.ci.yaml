@@ -6,7 +6,7 @@ services:
       MODEL_SET: ci
   llama:
     deploy: !reset {}
-    image: ghcr.io/ggml-org/llama.cpp:server-b12527
+    image: ${LLAMA_CPU_IMAGE}
     environment:
       CPU_ONLY: "1"
       CTX_CANDIDATES: "16384 8192"

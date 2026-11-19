@@ -14,6 +14,13 @@ jobs:
       - run: pip install pytest pydantic shellcheck-py
       - run: shellcheck -x install.sh textedit scripts/lib.sh && shellcheck -s sh llama/entrypoint.sh
       - run: python -m pytest -q
+      - name: Check that every pinned image exists
+        run: |
+          fail=0
+          for img in $(grep '_IMAGE=' config/versions.env | cut -d= -f2); do
+            if docker manifest inspect "$img" > /dev/null 2>&1; then echo "OK      $img"; else echo "MISSING $img"; fail=1; fi
+          done
+          exit $fail
 
   windows:
     runs-on: windows-latest
@@ -33,6 +40,7 @@ jobs:
         run: ./tests/windows_lib.tests.ps1
 
   e2e:
+    needs: unit   # skip the long test if the quick checks (including the image check) already failed
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:

@@ -77,4 +77,4 @@ $env:PATH = $oldPath
 Assert ($rc -is [int] -and $rc -eq 3) 'Invoke-Dc returns the exit code only'
 
 Remove-Item -Recurse -Force $dir
-if ($script:failures) { Write-Host "$script:failures test(s) failed"; exit 1 } else { Write-Host 'All tests passed' }
+if ($script:failures) { Write-Host "$script:failures test(s) failed"; exit 1 } else { Write-Host 'All tests passed'; exit 0 }
