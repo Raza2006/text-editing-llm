@@ -68,7 +68,8 @@ Assert (-not (Test-Path (Join-Path $dir 'missing.json'))) 'missing settings file
 
 # Invoke-Dc returns only docker's exit code, not its printed output
 $stub = Join-Path $dir 'bin'; New-Item -ItemType Directory -Path $stub | Out-Null
-if ($IsWindows) { Set-Content (Join-Path $stub 'docker.cmd') "@echo some output`r`n@echo more`r`n@exit /b 3" }
+# $IsWindows exists only in PowerShell 7+, so check the OS variable instead
+if ($env:OS -eq 'Windows_NT') { Set-Content (Join-Path $stub 'docker.cmd') "@echo some output`r`n@echo more`r`n@exit /b 3" }
 else { Set-Content (Join-Path $stub 'docker') "#!/bin/sh`necho some output`necho more`nexit 3"; chmod +x (Join-Path $stub 'docker') }
 $oldPath = $env:PATH; $env:PATH = "$stub$([IO.Path]::PathSeparator)$env:PATH"
 $rc = Invoke-Dc ps

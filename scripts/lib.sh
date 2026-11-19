@@ -55,7 +55,12 @@ ask_password() {
 }
 
 random_string() { # length
-  LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$1"
+  # Reads a fixed amount each time, so no command is cut off early (safe under "set -o pipefail").
+  local out=""
+  while [ "${#out}" -lt "$1" ]; do
+    out+=$(head -c 512 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')
+  done
+  printf '%s' "${out:0:$1}"
 }
 
 # Writes .env and data/secrets/llama_key the first time only.
@@ -123,7 +128,6 @@ dc() {
 show_addresses() {
   local port addr
   port=$(grep '^HTTPS_PORT=' config/defaults.env | cut -d= -f2)
-  [ -f data/ci-mode ] && port=8443
   addr=$(grep '^SITE_ADDRESSES=' .env | cut -d= -f2-)
   IFS=',' read -ra list <<< "$addr"
   for a in "${list[@]}"; do

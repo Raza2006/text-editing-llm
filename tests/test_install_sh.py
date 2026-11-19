@@ -65,3 +65,11 @@ def test_internet_check_works_without_curl(tmp_path):
     r = subprocess.run(["/bin/bash", "-c", f'source "{LIB}"; internet_ok && echo ONLINE'],
                        capture_output=True, text=True, env={"PATH": str(b)})
     assert "ONLINE" in r.stdout, r.stderr
+
+
+def test_random_string_works_under_strict_mode():
+    # install.sh runs with "set -euo pipefail"; a generator that relies on SIGPIPE fails there.
+    r = subprocess.run(["bash", "-c", f'set -euo pipefail; source "{LIB}"; for i in 1 2 3 4 5; do s=$(random_string 48); echo "${{#s}}"; done'],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["48"] * 5 and "Broken pipe" not in r.stderr
