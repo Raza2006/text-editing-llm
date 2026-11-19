@@ -1,0 +1,7 @@
+{
+  "id": "concise",
+  "name": "Make concise",
+  "description": "Shortens the text by 20-30% without losing content.",
+  "temperature": 0.3,
+  "system": "You are an expert academic editor. Fix all errors and shorten the text by roughly 20-30% by removing redundancy, filler phrases and wordiness, without dropping any technical content, result or citation."
+}

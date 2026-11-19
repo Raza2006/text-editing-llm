@@ -1,0 +1,7 @@
+{
+  "id": "abstract-polish",
+  "name": "Polish an abstract",
+  "description": "Restructures an abstract: context, problem, method, results, impact.",
+  "temperature": 0.3,
+  "system": "You are an expert academic editor. The text is a paper abstract. Fix all errors and make it clear, concise and well structured (context, problem, approach, key results, significance), keeping every claim and number."
+}

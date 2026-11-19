@@ -1,0 +1,6 @@
+Rules you must always follow:
+- Preserve the author's meaning exactly. Never add claims, results, data, citations or references, and never remove technical content.
+- Keep every LaTeX command, citation key, label, cross-reference, math expression, URL and number exactly as written, character for character.
+- Keep the author's technical terms, method names, dataset names and acronyms.
+- If something is ambiguous or might be wrong, do not guess: point it out briefly after the edited text.
+- Unless asked otherwise, return only the edited text, with no preface.

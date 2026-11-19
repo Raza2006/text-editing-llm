@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Everyday commands for text-editing-llm. Run ./textedit with no arguments for help.
+set -uo pipefail
+cd "$(dirname "$0")" || exit 1
+# shellcheck source=scripts/lib.sh
+source scripts/lib.sh
+LOG_FILE=data/textedit.log
+
+if ! docker info >/dev/null 2>&1; then
+  if [ "$(id -u)" != 0 ] && command -v sudo >/dev/null; then
+    exec sudo "$0" "$@"
+  fi
+  fail "Docker is not running." "Restart the computer, or run: sudo systemctl start docker"
+fi
+[ -f .env ] || fail "The assistant is not installed yet." "Run: sudo ./install.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: ./textedit <command>
+
+  status            Is everything running? Shows the address to open.
+  start             Start the assistant.
+  stop              Stop the assistant.
+  restart           Restart the assistant (after changing config/defaults.env).
+  logs              Show recent messages from each part.
+  doctor            Check everything and say how to fix problems.
+  doctor --reprobe  Also measure the graphics card again (after a hardware change).
+  backup            Save a backup of all accounts and chats now.
+  restore <file>    Put back a backup from data/backups (accounts and chats).
+  update            Get the latest version and restart.
+  loadtest          Simulate 8 people using it at once (takes a few minutes).
+  uninstall         Remove the assistant but keep all data.
+  uninstall --delete-data   Remove everything, including accounts and chats.
+EOF
+}
+
+status() {
+  dc ps --format 'table {{.Service}}\t{{.Status}}'
+  echo
+  if [ -f data/install-state ] && grep -qx installed data/install-state; then
+    echo "Open in a web browser:"; show_addresses
+  fi
+  if ctx=$(dc exec -T llama cat /state/ctx.env 2>/dev/null); then
+    echo; echo "Model memory settings:"
+    # shellcheck disable=SC2086
+    printf '      %s\n' $ctx
+  fi
+  dc exec -T llama nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null \
+    | sed 's/^/      GPU: /' || true
+}
+
+doctor() {
+  local problems=0
+  say "Checking the assistant"
+  if docker run --rm --gpus all --entrypoint nvidia-smi "$(grep '^LLAMA_IMAGE=' config/versions.env | cut -d= -f2)" -L >/dev/null 2>&1 || [ -f data/ci-mode ]; then
+    info "OK   Docker can use the graphics card."
+  else
+    info "FAIL Docker cannot use the graphics card. Fix: restart the computer, then run ./textedit start."
+    problems=$((problems + 1))
+  fi
+  local svc state
+  for svc in llama webui caddy backup; do
+    state=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$(dc ps -q "$svc" 2>/dev/null)" 2>/dev/null || echo "missing")
+    case "$state" in
+      "running healthy"|"running ") info "OK   $svc is running." ;;
+      "running starting") info "WAIT $svc is still starting. Check again in a few minutes." ;;
+      *) info "FAIL $svc is not running ($state). Fix: ./textedit restart, then ./textedit logs if it fails again."
+         problems=$((problems + 1)) ;;
+    esac
+  done
+  if dc logs --no-color --tail 200 llama 2>/dev/null | grep -q "does not fit on this GPU"; then
+    info "FAIL The model does not fit on the graphics card. Fix: close other programs that use the GPU, then run ./textedit doctor --reprobe"
+    problems=$((problems + 1))
+  fi
+  local free_gb
+  free_gb=$(df -BG --output=avail . | tail -1 | tr -dc 0-9)
+  if [ "$free_gb" -lt 10 ]; then
+    info "WARN Only ${free_gb} GB of disk space left. Delete old backups in data/backups or free some space."
+  else
+    info "OK   ${free_gb} GB of disk space free."
+  fi
+  echo
+  if [ "$problems" = 0 ]; then echo "Everything looks fine."; else echo "$problems problem(s) found: see the fixes above."; fi
+}
+
+case "${1:-}" in
+  status) status ;;
+  start) dc up -d && echo "Starting. Run ./textedit status in a minute." ;;
+  stop) dc stop && echo "Stopped. Run ./textedit start to start again." ;;
+  restart) dc up -d --force-recreate && echo "Restarting. Run ./textedit status in a minute." ;;
+  logs) dc logs --no-color --tail 40 ;;
+  doctor)
+    if [ "${2:-}" = "--reprobe" ]; then
+      dc exec -T llama rm -f /state/ctx.env 2>/dev/null || true
+      dc up -d --force-recreate llama && echo "Measuring the graphics card again; this takes a few minutes."
+    fi
+    doctor ;;
+  backup) dc run --rm maint backup-now ;;
+  restore)
+    [ -n "${2:-}" ] || { echo "Which backup? Available:"; ls data/backups; exit 1; }
+    dc stop webui backup && dc run --rm maint restore "$2"; rc=$?
+    dc up -d; exit $rc ;;
+  update)
+    git pull --ff-only || fail "Could not get the latest version." "Check the internet connection. If you changed files, ask for help."
+    dc pull --ignore-buildable --quiet && dc build --quiet && dc up -d --remove-orphans && wait_healthy webui 20 \
+      && dc run --rm seed && echo "Updated." ;;
+  loadtest) dc run --rm maint loadtest "${2:-200000}" ;;
+  seed) dc run --rm seed ;;
+  uninstall)
+    if [ "${2:-}" = "--delete-data" ]; then
+      read -rp "This deletes ALL accounts, chats and the model. Type DELETE to confirm: " c
+      [ "$c" = "DELETE" ] || { echo "Cancelled."; exit 1; }
+      dc --profile tools down -v --rmi local && rm -rf data .env && echo "Everything removed."
+    else
+      dc --profile tools down && echo "Removed. Accounts, chats and the model are kept; run ./textedit start to bring it back."
+    fi ;;
+  *) usage ;;
+esac

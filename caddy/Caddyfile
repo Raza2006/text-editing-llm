@@ -1,0 +1,9 @@
+{
+	admin off
+}
+
+{$SITE_ADDRESSES} {
+	tls internal
+	encode gzip
+	reverse_proxy webui:8080
+}

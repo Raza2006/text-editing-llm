@@ -158,7 +158,7 @@ On Windows, if WSL2 or Docker Desktop has to be installed, the installer asks fo
 7. Be **idempotent and resumable:** running it again never breaks anything and continues unfinished steps.
 8. On any failure, stop with: what failed, in plain words; the exact command or action to fix it; and where the full log is.
 
-**After installation**, a single helper command, `./textedit` on Linux or `.\textedit.ps1` on Windows, with:
+**After installation**, a single helper command, `./textedit` on Linux or `.\textedit` on Windows (a small `textedit.cmd` that runs `scripts\textedit.ps1`), with:
 
 | Command | Does |
 |---|---|
@@ -182,7 +182,7 @@ text-editing-llm/
 ├── README.md                 what it is + the install commands + troubleshooting
 ├── LICENSE                   (licence chosen by author, see open items)
 ├── install.sh / install.ps1
-├── textedit / textedit.ps1   helper command
+├── textedit / textedit.cmd   helper command (Windows logic in scripts/textedit.ps1)
 ├── compose.yaml              llama-server, open-webui, caddy, backup
 ├── config/
 │   ├── defaults.env          all tunables (model, context, slots, branding) with comments
@@ -220,7 +220,16 @@ Never in git: `.env`, `data/` (database, backups), `models/`, logs.
 - HTTPS on the local network.
 - Data at rest (the SQLite database) isn't encrypted by the app. The admin guide recommends OS disk encryption (BitLocker / LUKS).
 
-## 10. Left to the builder
+## 10. Builder's calls made during implementation
+
+- **The admin account is created by the installer.** It asks for the email and password and passes them to Open WebUI (`WEBUI_ADMIN_EMAIL`/`WEBUI_ADMIN_PASSWORD`), which also turns public sign-up off. Presets can then be installed automatically. The password is used once; setup then keeps an admin API key in the app's data volume and blanks the password in `.env`.
+- **The model is chosen by total GPU memory** (40 GiB or more → Gemma 4 31B, otherwise Gemma 4 26B-A4B). The start-up probe only picks the shared pool size.
+- **The Compress button** marks the chat; the compressed version is used from the user's next message, and the button says so.
+- **The raw model** is kept as an admin-only entry ("Gemma (raw model, admin only)"); users see only the presets.
+- **Pinned versions:** llama.cpp `b12527` (CUDA 12.8, Blackwell support), Open WebUI `v0.13.4`, Caddy `2.11.9`. The "Open WebUI" branding stays (its licence allows changes only for 50 users or fewer); our product name appears as `WEBUI_NAME`.
+- **Windows:** `textedit.cmd` lets users type `.\textedit` like on Linux. Secret files keep normal user-folder permissions so Docker Desktop can read them.
+
+## 11. Left to the builder (original list)
 
 - Exact pinned versions: llama.cpp image (must include sm_120), Open WebUI, Caddy. Record them in `config/models.lock`.
 - Confirm the exact Hugging Face repos and files for Gemma 4 31B QAT and the 26B-A4B fallback (`UD-Q4_K_XL`), and record their SHA-256 checksums.

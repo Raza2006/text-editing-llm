@@ -1,0 +1,165 @@
+# Started by the installer and the textedit helper, which pass:
+#   --env-file config/versions.env --env-file config/defaults.env --env-file .env
+name: textedit
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+x-manager: &manager
+  build:
+    context: .
+    dockerfile: manager/Dockerfile
+    args:
+      PYTHON_IMAGE: ${PYTHON_IMAGE}
+  image: textedit-manager:local
+  volumes:
+    - ./config:/config:ro
+
+services:
+  setup:
+    <<: [*manager, *gpu]
+    command: ["setup"]
+    environment:
+      MODEL_SET: ${MODEL_SET:-}
+      FORCE_MODEL: ${FORCE_MODEL:-}
+    volumes:
+      - ./config:/config:ro
+      - models:/models
+
+  llama:
+    <<: *gpu
+    image: ${LLAMA_IMAGE}
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      CTX_CANDIDATES: ${CTX_CANDIDATES}
+      CTX_MAX_PER_CHAT: ${CTX_MAX_PER_CHAT}
+      MIN_FREE_MIB: ${MIN_FREE_MIB}
+      PARALLEL: ${PARALLEL}
+      CPU_ONLY: ${CPU_ONLY:-0}
+      REPROBE: ${REPROBE:-}
+    volumes:
+      - ./llama/entrypoint.sh:/entrypoint.sh:ro
+      - models:/models:ro
+      - llama-state:/state
+    secrets:
+      - llama_key
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 3600s
+    restart: unless-stopped
+
+  webui:
+    image: ${WEBUI_IMAGE}
+    environment:
+      WEBUI_NAME: ${WEBUI_NAME}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      WEBUI_ADMIN_EMAIL: ${WEBUI_ADMIN_EMAIL}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD:-}
+      WEBUI_ADMIN_NAME: Admin
+      ENABLE_SIGNUP: "False"
+      DEFAULT_USER_ROLE: pending
+      ENABLE_ADMIN_CHAT_ACCESS: "False"
+      ENABLE_API_KEYS: "True"
+      ENABLE_OLLAMA_API: "False"
+      OPENAI_API_BASE_URLS: http://llama:8080/v1
+      OPENAI_API_KEYS: ${LLAMA_API_KEY}
+      DEFAULT_MODELS: copy-edit
+      ENABLE_WEB_SEARCH: "False"
+      ENABLE_IMAGE_GENERATION: "False"
+      ENABLE_CODE_INTERPRETER: "False"
+      ENABLE_COMMUNITY_SHARING: "False"
+      ENABLE_EVALUATION_ARENA_MODELS: "False"
+      ENABLE_TAGS_GENERATION: "False"
+      ENABLE_FOLLOW_UP_GENERATION: "False"
+      USER_PERMISSIONS_CHAT_FILE_UPLOAD: "False"
+      USER_PERMISSIONS_FEATURES_WEB_SEARCH: "False"
+      ENABLE_VERSION_UPDATE_CHECK: "False"
+      ANONYMIZED_TELEMETRY: "False"
+    volumes:
+      - webui-data:/app/backend/data
+    depends_on:
+      llama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 900s
+    restart: unless-stopped
+
+  caddy:
+    image: ${CADDY_IMAGE}
+    ports:
+      - "${HTTP_PORT}:80"
+      - "${HTTPS_PORT}:443"
+    environment:
+      SITE_ADDRESSES: ${SITE_ADDRESSES}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      webui:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backup:
+    <<: *manager
+    command: ["backup-loop"]
+    environment:
+      TZ: ${TZ:-}
+    volumes:
+      - ./config:/config:ro
+      - webui-data:/data
+      - ./data/backups:/backups
+    depends_on:
+      - webui
+    restart: unless-stopped
+
+  # One-off helpers, run by the installer and textedit (profile "tools").
+  seed:
+    <<: *manager
+    profiles: ["tools"]
+    command: ["seed"]
+    environment:
+      WEBUI_ADMIN_EMAIL: ${WEBUI_ADMIN_EMAIL}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD:-}
+      COMPRESS_AT: ${COMPRESS_AT}
+    volumes:
+      - ./config:/config:ro
+      - webui-data:/data
+      - llama-state:/state:ro
+    secrets:
+      - llama_key
+
+  maint:
+    <<: *manager
+    profiles: ["tools"]
+    volumes:
+      - ./config:/config:ro
+      - webui-data:/data
+      - ./data/backups:/backups
+    secrets:
+      - llama_key
+
+volumes:
+  models:
+  llama-state:
+  webui-data:
+  caddy-data:
+
+secrets:
+  llama_key:
+    file: ./data/secrets/llama_key

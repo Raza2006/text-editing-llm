@@ -1,0 +1,13 @@
+# Test setup without a GPU (GitHub Actions): tiny model on the CPU.
+services:
+  setup:
+    deploy: !reset {}
+    environment:
+      MODEL_SET: ci
+  llama:
+    deploy: !reset {}
+    image: ghcr.io/ggml-org/llama.cpp:server-b12527
+    environment:
+      CPU_ONLY: "1"
+      CTX_CANDIDATES: "16384 8192"
+      PARALLEL: "2"

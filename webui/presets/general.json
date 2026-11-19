@@ -1,0 +1,7 @@
+{
+  "id": "general",
+  "name": "General writing assistant",
+  "description": "Free questions about academic writing.",
+  "temperature": 0.5,
+  "system": "You are a helpful assistant for researchers writing academic papers. Answer questions about writing, structure, style and LaTeX concisely and specifically."
+}
