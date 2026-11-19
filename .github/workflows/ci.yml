@@ -22,7 +22,7 @@ jobs:
       - name: Code checks (PSScriptAnalyzer)
         shell: pwsh
         run: |
-          $r = Invoke-ScriptAnalyzer -Path install.ps1, scripts/textedit.ps1, scripts/lib.ps1 -Severity Error
+          $r = foreach ($f in 'install.ps1', 'scripts/textedit.ps1', 'scripts/lib.ps1') { Invoke-ScriptAnalyzer -Path $f -Severity Error }
           $r | Format-Table -AutoSize
           if ($r) { exit 1 }
       - name: Tests in Windows PowerShell 5.1
